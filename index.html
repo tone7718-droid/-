@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ROM Vision — 실시간 관절 가동범위 측정</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F7F6; --ink:#15292E; --ink-soft:#4A5E63;
+    --line:#D8E0DE; --panel:#FFFFFF;
+    --live:#0E8A6D; --live-dim:#DBEFE8;
+    --warn:#D97A26; --stage:#0D1416;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans KR',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh}
+
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  .brand span{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  .status{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  .led{width:8px;height:8px;border-radius:50%;background:#B9C5C3;transition:background .3s}
+  .led.on{background:var(--live);box-shadow:0 0 6px rgba(14,138,109,.6)}
+
+  main{max-width:1100px;margin:0 auto;padding:20px;display:grid;
+    grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:20px}
+  @media(max-width:820px){main{grid-template-columns:1fr}}
+
+  /* ── 영상 스테이지 ── */
+  .stage{position:relative;background:var(--stage);border-radius:10px;overflow:hidden;
+    aspect-ratio:4/3;display:flex;align-items:center;justify-content:center}
+  .stage video{display:none}
+  .stage canvas{width:100%;height:100%;object-fit:contain}
+  .stage .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;color:#8FA3A0;text-align:center;padding:24px}
+  .placeholder p{font-size:13px;line-height:1.6;max-width:300px}
+  .stage .hud{position:absolute;top:12px;left:12px;font-family:var(--mono);font-size:11px;
+    color:#C9D8D5;background:rgba(13,20,22,.55);padding:4px 9px;border-radius:5px;display:none}
+
+  button.primary{font-family:var(--sans);font-weight:600;font-size:14px;color:#fff;
+    background:var(--live);border:none;border-radius:7px;padding:11px 22px;cursor:pointer}
+  button.primary:hover{background:#0B7059}
+  button.primary:disabled{background:#9DB8B0;cursor:wait}
+  button.ghost{font-family:var(--sans);font-size:13px;color:var(--ink-soft);background:none;
+    border:1px solid var(--line);border-radius:7px;padding:8px 14px;cursor:pointer}
+  button.ghost:hover{border-color:var(--ink-soft)}
+  button:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+
+  /* ── 계기 패널 ── */
+  .panel{display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .card h2{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--ink-soft);
+    text-transform:uppercase;font-family:var(--mono);margin-bottom:10px}
+
+  select{width:100%;font-family:var(--sans);font-size:14px;padding:10px 12px;
+    border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)}
+
+  .readout{display:flex;align-items:center;gap:16px}
+  .gauge{flex:0 0 110px}
+  .angle-num{font-family:var(--mono);font-size:42px;font-weight:600;line-height:1;
+    font-variant-numeric:tabular-nums}
+  .angle-num small{font-size:18px;color:var(--ink-soft)}
+  .angle-label{font-size:12px;color:var(--ink-soft);margin-top:4px}
+
+  .minmax{display:flex;gap:0;border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+  .minmax div{flex:1}
+  .minmax .v{font-family:var(--mono);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+  .minmax .k{font-size:11px;color:var(--ink-soft);font-family:var(--mono)}
+
+  .rombar-wrap{margin-top:6px}
+  .rombar{height:10px;background:var(--live-dim);border-radius:5px;overflow:hidden}
+  .rombar i{display:block;height:100%;width:0%;background:var(--live);border-radius:5px;transition:width .25s}
+  .rombar-meta{display:flex;justify-content:space-between;font-family:var(--mono);
+    font-size:11px;color:var(--ink-soft);margin-top:6px}
+
+  .feedback{font-size:13px;line-height:1.6;padding:11px 13px;border-radius:7px;
+    background:var(--live-dim);color:#0B5B49}
+  .feedback.warn{background:#F8E8D7;color:#8A4D14}
+  .feedback.idle{background:#EDF1F0;color:var(--ink-soft)}
+
+  footer{max-width:1100px;margin:0 auto;padding:0 20px 28px;font-size:11px;
+    color:var(--ink-soft);line-height:1.6}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.1 · on-device</span></div>
+  <div class="status"><span class="led" id="led"></span><span id="statusText">대기 중</span></div>
+</header>
+
+<main>
+  <!-- 영상 스테이지 -->
+  <section class="stage" aria-label="카메라 영상">
+    <video id="video" playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div class="hud" id="hud">— fps</div>
+    <div class="placeholder" id="placeholder">
+      <p>카메라를 켜면 이 기기 안에서만 포즈를 분석합니다.<br>영상은 어디에도 전송되지 않습니다.</p>
+      <button class="primary" id="startBtn">카메라 시작</button>
+    </div>
+  </section>
+
+  <!-- 계기 패널 -->
+  <aside class="panel">
+    <div class="card">
+      <h2>측정 관절</h2>
+      <select id="jointSelect" aria-label="측정할 관절 선택">
+        <option value="kneeR">무릎 · 오른쪽</option>
+        <option value="kneeL">무릎 · 왼쪽</option>
+        <option value="elbowR">팔꿈치 · 오른쪽</option>
+        <option value="elbowL">팔꿈치 · 왼쪽</option>
+        <option value="shoulderR">어깨 굴곡 · 오른쪽</option>
+        <option value="shoulderL">어깨 굴곡 · 왼쪽</option>
+        <option value="hipR">고관절 굴곡 · 오른쪽</option>
+        <option value="hipL">고관절 굴곡 · 왼쪽</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>실시간 각도</h2>
+      <div class="readout">
+        <svg class="gauge" viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M 14 78 A 42 42 0 1 1 86 78" fill="none" stroke="#E4EAE8" stroke-width="9" stroke-linecap="round"/>
+          <path id="gaugeArc" d="M 14 78 A 42 42 0 1 1 86 78" fill="none" stroke="#0E8A6D"
+                stroke-width="9" stroke-linecap="round" stroke-dasharray="198" stroke-dashoffset="198"/>
+        </svg>
+        <div>
+          <div class="angle-num" id="angleNum">—<small>°</small></div>
+          <div class="angle-label" id="angleLabel">관절 내각 (3점 기준)</div>
+        </div>
+      </div>
+      <div class="minmax">
+        <div><div class="v" id="minV">—</div><div class="k">MIN</div></div>
+        <div><div class="v" id="maxV">—</div><div class="k">MAX</div></div>
+        <div><div class="v" id="romV">—</div><div class="k">ROM</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>가동범위 달성률</h2>
+      <div class="rombar-wrap">
+        <div class="rombar"><i id="romFill"></i></div>
+        <div class="rombar-meta"><span id="romPct">0%</span><span id="romTarget">목표 —°</span></div>
+      </div>
+      <p class="feedback idle" id="feedback" style="margin-top:12px">
+        관절을 선택하고 카메라를 시작한 뒤, 해당 관절을 천천히 끝까지 굽혔다 펴보세요.
+      </p>
+      <div style="margin-top:12px"><button class="ghost" id="resetBtn">세션 초기화</button></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  ※ 본 도구는 프로토타입이며 의료기기가 아닙니다. 2D 포즈 추정 특성상 카메라와 관절 운동면이
+  수직(측면 촬영)이 아닐 경우 각도 오차가 커집니다. 측정 관절이 화면 측면에 보이도록 촬영하세요.
+</footer>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver, DrawingUtils }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+/* ── 관절 정의: [A, 꼭짓점, B] 랜드마크 인덱스 + 목표 ROM(도) ───────
+   목표값은 AAOS 등 일반 임상 기준의 근사치(프로토타입용) */
+const JOINTS = {
+  kneeR:    {pts:[24,26,28], target:135, name:"무릎(우)"},
+  kneeL:    {pts:[23,25,27], target:135, name:"무릎(좌)"},
+  elbowR:   {pts:[12,14,16], target:145, name:"팔꿈치(우)"},
+  elbowL:   {pts:[11,13,15], target:145, name:"팔꿈치(좌)"},
+  shoulderR:{pts:[24,12,14], target:165, name:"어깨(우)"},
+  shoulderL:{pts:[23,11,13], target:165, name:"어깨(좌)"},
+  hipR:     {pts:[12,24,26], target:115, name:"고관절(우)"},
+  hipL:     {pts:[11,23,25], target:115, name:"고관절(좌)"},
+};
+
+const $ = id => document.getElementById(id);
+const video=$("video"), canvas=$("canvas"), ctx=canvas.getContext("2d");
+let landmarker=null, running=false, lastTs=-1;
+let session={min:Infinity,max:-Infinity};
+let smooth=null;                       // EMA 스무딩
+const ARC_LEN=198;
+
+function angle3(a,b,c){               // 꼭짓점 b의 내각(0~180°)
+  const v1={x:a.x-b.x,y:a.y-b.y}, v2={x:c.x-b.x,y:c.y-b.y};
+  const dot=v1.x*v2.x+v1.y*v2.y;
+  const m=Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y);
+  if(m===0) return null;
+  return Math.acos(Math.min(1,Math.max(-1,dot/m)))*180/Math.PI;
+}
+
+function resetSession(){
+  session={min:Infinity,max:-Infinity}; smooth=null;
+  $("minV").textContent=$("maxV").textContent=$("romV").textContent="—";
+  $("romFill").style.width="0%"; $("romPct").textContent="0%";
+  const fb=$("feedback");
+  fb.className="feedback idle";
+  fb.textContent="관절을 천천히 끝까지 굽혔다 펴보세요. 최소·최대각으로 ROM을 계산합니다.";
+}
+$("resetBtn").onclick=resetSession;
+$("jointSelect").onchange=()=>{ resetSession(); updateTargetLabel(); };
+function updateTargetLabel(){
+  $("romTarget").textContent=`목표 ${JOINTS[$("jointSelect").value].target}°`;
+}
+updateTargetLabel();
+
+$("startBtn").onclick=async()=>{
+  const btn=$("startBtn");
+  btn.disabled=true; btn.textContent="모델 로딩 중…";
+  $("statusText").textContent="모델 로딩";
+  try{
+    const fileset=await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    landmarker=await PoseLandmarker.createFromOptions(fileset,{
+      baseOptions:{
+        modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        delegate:"GPU"},
+      runningMode:"VIDEO", numPoses:1});
+    btn.textContent="카메라 켜는 중…";
+    const stream=await navigator.mediaDevices.getUserMedia(
+      {video:{width:{ideal:960},height:{ideal:720},facingMode:"user"}});
+    video.srcObject=stream;
+    await video.play();
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    $("placeholder").style.display="none";
+    $("hud").style.display="block";
+    $("led").classList.add("on");
+    $("statusText").textContent="측정 중 · on-device";
+    running=true;
+    requestAnimationFrame(loop);
+  }catch(e){
+    btn.disabled=false; btn.textContent="카메라 시작";
+    $("statusText").textContent="오류";
+    alert("시작 실패: "+e.message+"\n카메라 권한과 HTTPS 접속 여부를 확인하세요.");
+  }
+};
+
+let fpsT=performance.now(), fpsN=0;
+function loop(){
+  if(!running) return;
+  if(video.currentTime!==lastTs){
+    lastTs=video.currentTime;
+    const res=landmarker.detectForVideo(video,performance.now());
+    draw(res);
+    fpsN++;
+    const now=performance.now();
+    if(now-fpsT>1000){ $("hud").textContent=fpsN+" fps · local"; fpsN=0; fpsT=now; }
+  }
+  requestAnimationFrame(loop);
+}
+
+function draw(res){
+  ctx.save();
+  // 거울 모드
+  ctx.translate(canvas.width,0); ctx.scale(-1,1);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  const lm=res.landmarks?.[0];
+  if(!lm){ ctx.restore(); setAngle(null); return; }
+
+  // 스켈레톤
+  const du=new DrawingUtils(ctx);
+  du.drawConnectors(lm,PoseLandmarker.POSE_CONNECTIONS,
+    {color:"rgba(255,255,255,.35)",lineWidth:2});
+
+  const J=JOINTS[$("jointSelect").value];
+  const [ia,ib,ic]=J.pts, A=lm[ia], B=lm[ib], C=lm[ic];
+  const vis=Math.min(A.visibility??1,B.visibility??1,C.visibility??1);
+  let ang=angle3(A,B,C);
+
+  if(ang!==null && vis>0.5){
+    smooth = smooth===null ? ang : smooth*0.7 + ang*0.3;   // EMA
+    ang=smooth;
+    // 측정 관절 강조
+    const px=p=>({x:p.x*canvas.width,y:p.y*canvas.height});
+    const pa=px(A),pb=px(B),pc=px(C);
+    ctx.strokeStyle="#19D3A5"; ctx.lineWidth=4; ctx.lineCap="round";
+    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.lineTo(pc.x,pc.y);ctx.stroke();
+    for(const p of [pa,pb,pc]){
+      ctx.fillStyle="#19D3A5";ctx.beginPath();ctx.arc(p.x,p.y,6,0,7);ctx.fill();
+    }
+    // 각도 라벨 (거울 보정 위해 텍스트만 재반전)
+    ctx.save();
+    ctx.translate(pb.x,pb.y); ctx.scale(-1,1);
+    ctx.font="600 17px 'IBM Plex Mono'";
+    const t=Math.round(ang)+"°";
+    ctx.fillStyle="rgba(13,20,22,.75)";
+    const w=ctx.measureText(t).width;
+    ctx.fillRect(10,-26,w+14,24);
+    ctx.fillStyle="#19D3A5"; ctx.fillText(t,17,-8);
+    ctx.restore();
+
+    setAngle(ang,J);
+  }else{
+    setAngle(null);
+  }
+  ctx.restore();
+}
+
+function setAngle(ang,J){
+  if(ang===null){
+    $("angleNum").innerHTML="—<small>°</small>";
+    $("gaugeArc").style.strokeDashoffset=ARC_LEN;
+    return;
+  }
+  $("angleNum").innerHTML=Math.round(ang)+"<small>°</small>";
+  $("gaugeArc").style.strokeDashoffset=ARC_LEN*(1-ang/180);
+
+  session.min=Math.min(session.min,ang);
+  session.max=Math.max(session.max,ang);
+  const rom=session.max-session.min;
+  $("minV").textContent=Math.round(session.min)+"°";
+  $("maxV").textContent=Math.round(session.max)+"°";
+  $("romV").textContent=Math.round(rom)+"°";
+
+  const pct=Math.min(100,rom/J.target*100);
+  $("romFill").style.width=pct+"%";
+  $("romPct").textContent=Math.round(pct)+"%";
+
+  const fb=$("feedback");
+  if(rom<10){
+    fb.className="feedback idle";
+    fb.textContent=`${J.name} 관절을 천천히 끝까지 움직여 보세요.`;
+  }else if(pct<60){
+    fb.className="feedback warn";
+    fb.textContent=`${J.name} ROM ${Math.round(rom)}° — 목표(${J.target}°)의 ${Math.round(pct)}%. 통증이 없는 범위에서 조금 더 깊게 움직여 보세요.`;
+  }else if(pct<90){
+    fb.className="feedback";
+    fb.textContent=`${J.name} ROM ${Math.round(rom)}° — 목표의 ${Math.round(pct)}%. 좋은 진행입니다. 끝범위에서 2~3초 유지해 보세요.`;
+  }else{
+    fb.className="feedback";
+    fb.textContent=`${J.name} ROM ${Math.round(rom)}° — 정상 범위 수준입니다. 반대쪽과 비교 측정해 보세요.`;
+  }
+}
+</script>
+</body>
+</html>
