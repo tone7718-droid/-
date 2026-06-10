@@ -91,7 +91,7 @@
 <body>
 
 <header>
-  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.1 · on-device</span></div>
+  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.2 · on-device</span></div>
   <div class="status"><span class="led" id="led"></span><span id="statusText">대기 중</span></div>
 </header>
 
@@ -116,11 +116,12 @@
         <option value="kneeL">무릎 · 왼쪽</option>
         <option value="elbowR">팔꿈치 · 오른쪽</option>
         <option value="elbowL">팔꿈치 · 왼쪽</option>
-        <option value="shoulderR">어깨 굴곡 · 오른쪽</option>
-        <option value="shoulderL">어깨 굴곡 · 왼쪽</option>
+        <option value="shoulderR">어깨 외전 · 오른쪽</option>
+        <option value="shoulderL">어깨 외전 · 왼쪽</option>
         <option value="hipR">고관절 굴곡 · 오른쪽</option>
         <option value="hipL">고관절 굴곡 · 왼쪽</option>
       </select>
+      <p id="jointGuide" style="margin-top:10px;font-size:12px;line-height:1.6;color:var(--ink-soft)"></p>
     </div>
 
     <div class="card">
@@ -169,14 +170,22 @@ import { PoseLandmarker, FilesetResolver, DrawingUtils }
 /* ── 관절 정의: [A, 꼭짓점, B] 랜드마크 인덱스 + 목표 ROM(도) ───────
    목표값은 AAOS 등 일반 임상 기준의 근사치(프로토타입용) */
 const JOINTS = {
-  kneeR:    {pts:[24,26,28], target:135, name:"무릎(우)"},
-  kneeL:    {pts:[23,25,27], target:135, name:"무릎(좌)"},
-  elbowR:   {pts:[12,14,16], target:145, name:"팔꿈치(우)"},
-  elbowL:   {pts:[11,13,15], target:145, name:"팔꿈치(좌)"},
-  shoulderR:{pts:[24,12,14], target:165, name:"어깨(우)"},
-  shoulderL:{pts:[23,11,13], target:165, name:"어깨(좌)"},
-  hipR:     {pts:[12,24,26], target:115, name:"고관절(우)"},
-  hipL:     {pts:[11,23,25], target:115, name:"고관절(좌)"},
+  kneeR:    {pts:[24,26,28], target:135, name:"무릎(우)",  view:"side",
+             guide:"오른쪽 옆모습이 보이게 서서 무릎을 굽혔다 펴세요."},
+  kneeL:    {pts:[23,25,27], target:135, name:"무릎(좌)",  view:"side",
+             guide:"왼쪽 옆모습이 보이게 서서 무릎을 굽혔다 펴세요."},
+  elbowR:   {pts:[12,14,16], target:145, name:"팔꿈치(우)", view:"any",
+             guide:"팔 전체가 화면에 보이게 하고 팔꿈치를 굽혔다 펴세요."},
+  elbowL:   {pts:[11,13,15], target:145, name:"팔꿈치(좌)", view:"any",
+             guide:"팔 전체가 화면에 보이게 하고 팔꿈치를 굽혔다 펴세요."},
+  shoulderR:{pts:[24,12,14], target:165, name:"어깨(우)",  view:"front",
+             guide:"정면을 보고 팔을 '옆으로' 천천히 들어 올리세요. 앞으로 들면 측정되지 않습니다 (측면 촬영 필요)."},
+  shoulderL:{pts:[23,11,13], target:165, name:"어깨(좌)",  view:"front",
+             guide:"정면을 보고 팔을 '옆으로' 천천히 들어 올리세요. 앞으로 들면 측정되지 않습니다 (측면 촬영 필요)."},
+  hipR:     {pts:[12,24,26], target:115, name:"고관절(우)", view:"side",
+             guide:"오른쪽 옆모습이 보이게 서서 무릎을 가슴 쪽으로 들어 올리세요."},
+  hipL:     {pts:[11,23,25], target:115, name:"고관절(좌)", view:"side",
+             guide:"왼쪽 옆모습이 보이게 서서 무릎을 가슴 쪽으로 들어 올리세요."},
 };
 
 const $ = id => document.getElementById(id);
@@ -205,7 +214,9 @@ function resetSession(){
 $("resetBtn").onclick=resetSession;
 $("jointSelect").onchange=()=>{ resetSession(); updateTargetLabel(); };
 function updateTargetLabel(){
-  $("romTarget").textContent=`목표 ${JOINTS[$("jointSelect").value].target}°`;
+  const J=JOINTS[$("jointSelect").value];
+  $("romTarget").textContent=`목표 ${J.target}°`;
+  $("jointGuide").textContent="📐 "+J.guide;
 }
 updateTargetLabel();
 
@@ -218,7 +229,7 @@ $("startBtn").onclick=async()=>{
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
     landmarker=await PoseLandmarker.createFromOptions(fileset,{
       baseOptions:{
-        modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
         delegate:"GPU"},
       runningMode:"VIDEO", numPoses:1});
     btn.textContent="카메라 켜는 중…";
@@ -273,17 +284,29 @@ function draw(res){
   const vis=Math.min(A.visibility??1,B.visibility??1,C.visibility??1);
   let ang=angle3(A,B,C);
 
+  // 자세 방향 감지: 어깨 너비 / 몸통 높이 비율
+  const shW=Math.abs(lm[11].x-lm[12].x);
+  const torso=Math.abs(((lm[11].y+lm[12].y)/2)-((lm[23].y+lm[24].y)/2));
+  const ratio=torso>0 ? shW/torso : 0;
+  let poseWarn=null;
+  if(J.view==="side"  && ratio>0.45) poseWarn="몸을 옆으로 돌려 측면이 보이게 서 주세요";
+  if(J.view==="front" && ratio<0.25) poseWarn="정면을 보고 서 주세요";
+
   if(ang!==null && vis>0.5){
     smooth = smooth===null ? ang : smooth*0.7 + ang*0.3;   // EMA
     ang=smooth;
     // 측정 관절 강조
     const px=p=>({x:p.x*canvas.width,y:p.y*canvas.height});
     const pa=px(A),pb=px(B),pc=px(C);
-    ctx.strokeStyle="#19D3A5"; ctx.lineWidth=4; ctx.lineCap="round";
+    const lineCol=poseWarn ? "#E8B14C" : "#19D3A5";
+    ctx.strokeStyle=lineCol; ctx.lineWidth=4; ctx.lineCap="round";
     ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.lineTo(pc.x,pc.y);ctx.stroke();
-    for(const p of [pa,pb,pc]){
-      ctx.fillStyle="#19D3A5";ctx.beginPath();ctx.arc(p.x,p.y,6,0,7);ctx.fill();
+    // 측정 3점 표시: 꼭짓점은 링, 양끝은 점
+    for(const p of [pa,pc]){
+      ctx.fillStyle=lineCol;ctx.beginPath();ctx.arc(p.x,p.y,6,0,7);ctx.fill();
     }
+    ctx.lineWidth=3;ctx.strokeStyle=lineCol;
+    ctx.beginPath();ctx.arc(pb.x,pb.y,10,0,7);ctx.stroke();
     // 각도 라벨 (거울 보정 위해 텍스트만 재반전)
     ctx.save();
     ctx.translate(pb.x,pb.y); ctx.scale(-1,1);
@@ -292,17 +315,30 @@ function draw(res){
     ctx.fillStyle="rgba(13,20,22,.75)";
     const w=ctx.measureText(t).width;
     ctx.fillRect(10,-26,w+14,24);
-    ctx.fillStyle="#19D3A5"; ctx.fillText(t,17,-8);
+    ctx.fillStyle=lineCol; ctx.fillText(t,17,-8);
     ctx.restore();
 
-    setAngle(ang,J);
+    setAngle(ang,J,poseWarn);
   }else{
+    poseWarn = vis<=0.5 ? "측정 관절이 화면에 충분히 보이지 않습니다" : poseWarn;
     setAngle(null);
+  }
+  // 경고 배너
+  if(poseWarn){
+    ctx.save();
+    ctx.scale(-1,1); ctx.translate(-canvas.width,0);
+    ctx.font="600 16px 'IBM Plex Sans KR'";
+    const w=ctx.measureText(poseWarn).width;
+    ctx.fillStyle="rgba(216,122,38,.92)";
+    ctx.fillRect(canvas.width/2-w/2-14,16,w+28,34);
+    ctx.fillStyle="#fff";
+    ctx.fillText(poseWarn,canvas.width/2-w/2,39);
+    ctx.restore();
   }
   ctx.restore();
 }
 
-function setAngle(ang,J){
+function setAngle(ang,J,poseWarn){
   if(ang===null){
     $("angleNum").innerHTML="—<small>°</small>";
     $("gaugeArc").style.strokeDashoffset=ARC_LEN;
@@ -310,6 +346,13 @@ function setAngle(ang,J){
   }
   $("angleNum").innerHTML=Math.round(ang)+"<small>°</small>";
   $("gaugeArc").style.strokeDashoffset=ARC_LEN*(1-ang/180);
+
+  if(poseWarn){          // 잘못된 자세에서는 ROM 기록 누적 안 함
+    const fb=$("feedback");
+    fb.className="feedback warn";
+    fb.textContent="⚠ "+poseWarn+" — 올바른 자세에서만 ROM이 기록됩니다.";
+    return;
+  }
 
   session.min=Math.min(session.min,ang);
   session.max=Math.max(session.max,ang);
