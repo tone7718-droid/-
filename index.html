@@ -100,7 +100,7 @@
 <body>
 
 <header>
-  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.4 · on-device</span></div>
+  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.5 · on-device</span></div>
   <div class="status"><span class="led" id="led"></span><span id="statusText">대기 중</span></div>
 </header>
 
@@ -172,10 +172,13 @@
       <h2>기록 · 회차별 ROM 추세</h2>
       <svg id="trend" viewBox="0 0 280 90" style="width:100%;display:block"></svg>
       <ul id="histList" style="list-style:none;margin-top:8px"></ul>
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="ghost" id="csvBtn">CSV 내보내기</button>
+        <button class="ghost" id="aiBtn">✦ 세션 요약</button>
         <span style="font-size:11px;color:var(--ink-soft)">기록은 이 기기에만 저장됩니다</span>
       </div>
+      <div id="aiBox" style="display:none;margin-top:10px;padding:12px 13px;border-radius:7px;
+        background:#EEF3FB;color:#2A4365;font-size:13px;line-height:1.7;white-space:pre-wrap"></div>
     </div>
   </aside>
 </main>
@@ -306,6 +309,56 @@ function renderHistory(){
   svg.innerHTML=g;
 }
 renderHistory();
+
+/* ── 세션 요약: 100% 온디바이스 규칙 기반 분석 (외부 전송 없음) ── */
+$("aiBtn").onclick=()=>{
+  const key=$("jointSelect").value, J=JOINTS[key];
+  const recs=loadRecords().filter(r=>r.j===key);
+  if(recs.length<2){ alert("요약하려면 같은 관절의 저장 기록이 2회 이상 필요합니다."); return; }
+  const box=$("aiBox"); box.style.display="block";
+
+  const last=recs[recs.length-1], prev=recs[recs.length-2];
+  const dLast=last.rom-prev.rom;
+  const best=Math.max(...recs.map(r=>r.rom));
+  const pct=Math.round(last.rom/J.target*100);
+  // 전체 추세: 전반부 평균 vs 후반부 평균
+  const half=Math.floor(recs.length/2);
+  const avg=a=>a.reduce((s,r)=>s+r.rom,0)/a.length;
+  const trendD=Math.round(avg(recs.slice(half))-avg(recs.slice(0,half)));
+  // 보상 추세
+  const comps=recs.filter(r=>r.c!=null);
+  const lastC=last.c??null, prevC=prev.c??null;
+
+  let lines=[];
+  // 1) 추세
+  lines.push(`【추세】 최근 ${J.name} ROM은 ${last.rom}° (직전 대비 ${dLast>=0?"+":""}${dLast}°), `
+    +`총 ${recs.length}회 중 최고 ${best}°, 목표(${J.target}°)의 ${pct}% 수준입니다. `
+    +(recs.length>=4 ? (trendD>3?`전체적으로 상승 추세(약 +${trendD}°)입니다.`:trendD<-3?`전체적으로 하락 추세(약 ${trendD}°)입니다.`:`전체적으로 유지 추세입니다.`):""));
+  // 2) 보상
+  if(comps.length>=2 && lastC!=null && prevC!=null){
+    if(lastC<prevC) lines.push(`【보상】 보상 움직임 비율이 ${prevC}% → ${lastC}%로 줄었습니다. 움직임의 질이 좋아지고 있습니다.`);
+    else if(lastC>prevC+5) lines.push(`【보상】 보상 비율이 ${prevC}% → ${lastC}%로 늘었습니다. ROM 수치보다 정확한 자세를 우선하세요.`);
+    else if(lastC>30) lines.push(`【보상】 보상 비율이 ${lastC}%로 높은 편입니다. 범위를 줄이더라도 보상 없는 동작을 연습하세요.`);
+  }
+  // 3) 잘된 점
+  if(dLast>0) lines.push(`【잘된 점】 직전 세션보다 가동범위가 ${dLast}° 넓어졌습니다.`);
+  else if(lastC!=null&&prevC!=null&&lastC<prevC) lines.push(`【잘된 점】 보상을 줄이면서 측정을 이어가고 있습니다.`);
+  else lines.push(`【잘된 점】 꾸준히 기록을 쌓고 있다는 것 자체가 회복 추적의 기본입니다.`);
+  // 4) 다음 개선점 (우선순위: 통증주의 하락 > 보상 > 범위 확장 > 유지)
+  if(trendD<-3 && recs.length>=4)
+    lines.push(`【다음 세션】 ROM이 줄어드는 추세입니다. 통증·피로가 있는지 확인하고, 무리한 확장보다 통증 없는 범위 반복을 권합니다.`);
+  else if(lastC!=null && lastC>30)
+    lines.push(`【다음 세션】 거울 경고(빨간 배너)가 뜨지 않는 범위까지만 천천히 움직이는 연습을 해보세요.`);
+  else if(pct<60)
+    lines.push(`【다음 세션】 통증이 없는 범위에서 끝지점에 도달한 뒤 2~3초 유지를 세트당 5회 시도해 보세요.`);
+  else if(pct<90)
+    lines.push(`【다음 세션】 목표까지 ${J.target-last.rom}° 남았습니다. 끝범위 유지 시간을 3~5초로 늘려보세요.`);
+  else
+    lines.push(`【다음 세션】 목표 범위에 도달했습니다. 반대쪽과 비교 측정해 좌우 차이를 확인해 보세요.`);
+
+  lines.push(`※ 본 내용은 측정 기록 기반 운동 보조 정보이며 의료적 진단이 아닙니다.`);
+  box.textContent=lines.join("\n\n");
+};
 function updateTargetLabel(){
   const J=JOINTS[$("jointSelect").value];
   $("romTarget").textContent=`목표 ${J.target}°`;
