@@ -100,7 +100,7 @@
 <body>
 
 <header>
-  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.3 · on-device</span></div>
+  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.4 · on-device</span></div>
   <div class="status"><span class="led" id="led"></span><span id="statusText">대기 중</span></div>
 </header>
 
@@ -213,7 +213,7 @@ const JOINTS = {
 const $ = id => document.getElementById(id);
 const video=$("video"), canvas=$("canvas"), ctx=canvas.getContext("2d");
 let landmarker=null, running=false, lastTs=-1;
-let session={min:Infinity,max:-Infinity};
+let session={min:Infinity,max:-Infinity,comp:0,frames:0};
 let smooth=null;                       // EMA 스무딩
 const ARC_LEN=198;
 
@@ -226,7 +226,7 @@ function angle3(a,b,c){               // 꼭짓점 b의 내각(0~180°)
 }
 
 function resetSession(){
-  session={min:Infinity,max:-Infinity}; smooth=null;
+  session={min:Infinity,max:-Infinity,comp:0,frames:0}; smooth=null;
   $("minV").textContent=$("maxV").textContent=$("romV").textContent="—";
   $("romFill").style.width="0%"; $("romPct").textContent="0%";
   const fb=$("feedback");
@@ -245,8 +245,9 @@ $("saveBtn").onclick=()=>{
   const rom=session.max-session.min;
   if(!isFinite(rom)||rom<5){ alert("저장할 측정값이 없습니다. 관절을 충분히 움직인 뒤 저장하세요."); return; }
   const recs=loadRecords();
+  const compPct = session.frames>0 ? Math.round(session.comp/session.frames*100) : 0;
   recs.push({t:Date.now(), j:$("jointSelect").value,
-    min:Math.round(session.min), max:Math.round(session.max), rom:Math.round(rom)});
+    min:Math.round(session.min), max:Math.round(session.max), rom:Math.round(rom), c:compPct});
   saveRecords(recs); renderHistory(); resetSession();
   const fb=$("feedback"); fb.className="feedback";
   fb.textContent="세션이 저장되었습니다. 아래 기록에서 추세를 확인하세요.";
@@ -255,9 +256,9 @@ $("saveBtn").onclick=()=>{
 $("csvBtn").onclick=()=>{
   const recs=loadRecords();
   if(!recs.length){ alert("내보낼 기록이 없습니다."); return; }
-  let csv="date,joint,min,max,rom\n";
+  let csv="date,joint,min,max,rom,comp_pct\n";
   for(const r of recs){
-    csv+=new Date(r.t).toISOString()+","+JOINTS[r.j].name+","+r.min+","+r.max+","+r.rom+"\n";
+    csv+=new Date(r.t).toISOString()+","+JOINTS[r.j].name+","+r.min+","+r.max+","+r.rom+","+(r.c??"")+"\n";
   }
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv"}));
@@ -279,7 +280,8 @@ function renderHistory(){
     const d=new Date(r.t);
     li.innerHTML='<span class="d">'+(d.getMonth()+1)+'.'+d.getDate()+' '
       +String(d.getHours()).padStart(2,"0")+':'+String(d.getMinutes()).padStart(2,"0")+'</span>'
-      +'<span>ROM '+r.rom+'° <span class="d">('+r.min+'–'+r.max+'°)</span></span>';
+      +'<span>ROM '+r.rom+'° <span class="d">('+r.min+'–'+r.max+'°'
+      +(r.c!=null&&r.c>0 ? ' · 보상 '+r.c+'%' : '')+')</span></span>';
     const x=document.createElement("button");
     x.className="x"; x.textContent="×"; x.title="기록 삭제";
     x.onclick=()=>{ const all=loadRecords(); const i=all.findIndex(a=>a.t===r.t);
@@ -383,13 +385,28 @@ function draw(res){
   if(J.view==="side"  && ratio>0.45) poseWarn="몸을 옆으로 돌려 측면이 보이게 서 주세요";
   if(J.view==="front" && ratio<0.25) poseWarn="정면을 보고 서 주세요";
 
+  // ── 보상 움직임 감지 ──
+  let compWarn=null;
+  const jk=$("jointSelect").value;
+  const mShX=(lm[11].x+lm[12].x)/2, mShY=(lm[11].y+lm[12].y)/2;
+  const mHpX=(lm[23].x+lm[24].x)/2, mHpY=(lm[23].y+lm[24].y)/2;
+  const tilt=Math.atan2(mShX-mHpX, mHpY-mShY)*180/Math.PI;   // 0° = 몸통 수직
+  if(jk.startsWith("shoulder") && Math.abs(tilt)>12)
+    compWarn="몸통 기울임 보상 — 상체를 곧게 세우고 팔만 올리세요";
+  if(jk.startsWith("hip") && Math.abs(tilt)>15)
+    compWarn="몸통 젖힘 보상 — 상체를 세운 채 다리만 들어 올리세요";
+  if(jk==="shoulderR" && torso>0 && (lm[11].y-lm[12].y)/torso>0.08)
+    compWarn="어깨 들림(으쓱) 보상 — 어깨를 내리고 팔만 올리세요";
+  if(jk==="shoulderL" && torso>0 && (lm[12].y-lm[11].y)/torso>0.08)
+    compWarn="어깨 들림(으쓱) 보상 — 어깨를 내리고 팔만 올리세요";
+
   if(ang!==null && vis>0.5){
     smooth = smooth===null ? ang : smooth*0.7 + ang*0.3;   // EMA
     ang=smooth;
     // 측정 관절 강조
     const px=p=>({x:p.x*canvas.width,y:p.y*canvas.height});
     const pa=px(A),pb=px(B),pc=px(C);
-    const lineCol=poseWarn ? "#E8B14C" : "#19D3A5";
+    const lineCol=poseWarn ? "#E8B14C" : (compWarn ? "#E05C5C" : "#19D3A5");
     ctx.strokeStyle=lineCol; ctx.lineWidth=4; ctx.lineCap="round";
     ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.lineTo(pc.x,pc.y);ctx.stroke();
     // 측정 3점 표시: 꼭짓점은 링, 양끝은 점
@@ -409,27 +426,28 @@ function draw(res){
     ctx.fillStyle=lineCol; ctx.fillText(t,17,-8);
     ctx.restore();
 
-    setAngle(ang,J,poseWarn);
+    setAngle(ang,J,poseWarn,compWarn);
   }else{
     poseWarn = vis<=0.5 ? "측정 관절이 화면에 충분히 보이지 않습니다" : poseWarn;
     setAngle(null);
   }
-  // 경고 배너
-  if(poseWarn){
+  // 경고 배너 (자세 = 주황 / 보상 = 빨강)
+  const banner = poseWarn || compWarn;
+  if(banner){
     ctx.save();
     ctx.scale(-1,1); ctx.translate(-canvas.width,0);
     ctx.font="600 16px 'IBM Plex Sans KR'";
-    const w=ctx.measureText(poseWarn).width;
-    ctx.fillStyle="rgba(216,122,38,.92)";
+    const w=ctx.measureText(banner).width;
+    ctx.fillStyle = poseWarn ? "rgba(216,122,38,.92)" : "rgba(192,57,57,.92)";
     ctx.fillRect(canvas.width/2-w/2-14,16,w+28,34);
     ctx.fillStyle="#fff";
-    ctx.fillText(poseWarn,canvas.width/2-w/2,39);
+    ctx.fillText(banner,canvas.width/2-w/2,39);
     ctx.restore();
   }
   ctx.restore();
 }
 
-function setAngle(ang,J,poseWarn){
+function setAngle(ang,J,poseWarn,compWarn){
   if(ang===null){
     $("angleNum").innerHTML="—<small>°</small>";
     $("gaugeArc").style.strokeDashoffset=ARC_LEN;
@@ -445,6 +463,15 @@ function setAngle(ang,J,poseWarn){
     return;
   }
 
+  // 보상은 ROM 기록은 유지하되 비율을 집계 (임상적으로 보상 포함 ROM도 의미가 있음)
+  session.frames++;
+  if(compWarn){
+    session.comp++;
+    const fb=$("feedback");
+    fb.className="feedback warn";
+    fb.textContent="🔴 "+compWarn;
+  }
+
   session.min=Math.min(session.min,ang);
   session.max=Math.max(session.max,ang);
   const rom=session.max-session.min;
@@ -455,6 +482,8 @@ function setAngle(ang,J,poseWarn){
   const pct=Math.min(100,rom/J.target*100);
   $("romFill").style.width=pct+"%";
   $("romPct").textContent=Math.round(pct)+"%";
+
+  if(compWarn) return;   // 보상 경고가 떠 있는 동안에는 ROM 피드백으로 덮지 않음
 
   const fb=$("feedback");
   if(rom<10){
