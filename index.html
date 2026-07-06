@@ -7,100 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#F5F7F6; --ink:#15292E; --ink-soft:#4A5E63;
-    --line:#D8E0DE; --panel:#FFFFFF;
-    --live:#0E8A6D; --live-dim:#DBEFE8;
-    --warn:#D97A26; --stage:#0D1416;
-    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans KR',sans-serif;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh}
-
-  header{display:flex;align-items:center;justify-content:space-between;
-    padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
-  .brand{display:flex;align-items:baseline;gap:10px}
-  .brand h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
-  .brand span{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
-  .status{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
-  .led{width:8px;height:8px;border-radius:50%;background:#B9C5C3;transition:background .3s}
-  .led.on{background:var(--live);box-shadow:0 0 6px rgba(14,138,109,.6)}
-
-  main{max-width:1100px;margin:0 auto;padding:20px;display:grid;
-    grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:20px}
-  @media(max-width:820px){main{grid-template-columns:1fr}}
-
-  /* ── 영상 스테이지 ── */
-  .stage{position:relative;background:var(--stage);border-radius:10px;overflow:hidden;
-    aspect-ratio:4/3;display:flex;align-items:center;justify-content:center}
-  .stage video{display:none}
-  .stage canvas{width:100%;height:100%;object-fit:contain}
-  .stage .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:14px;color:#8FA3A0;text-align:center;padding:24px}
-  .placeholder p{font-size:13px;line-height:1.6;max-width:300px}
-  .stage .hud{position:absolute;top:12px;left:12px;font-family:var(--mono);font-size:11px;
-    color:#C9D8D5;background:rgba(13,20,22,.55);padding:4px 9px;border-radius:5px;display:none}
-
-  button.primary{font-family:var(--sans);font-weight:600;font-size:14px;color:#fff;
-    background:var(--live);border:none;border-radius:7px;padding:11px 22px;cursor:pointer}
-  button.primary:hover{background:#0B7059}
-  button.primary:disabled{background:#9DB8B0;cursor:wait}
-  button.ghost{font-family:var(--sans);font-size:13px;color:var(--ink-soft);background:none;
-    border:1px solid var(--line);border-radius:7px;padding:8px 14px;cursor:pointer}
-  button.ghost:hover{border-color:var(--ink-soft)}
-  button.primary.sm{padding:8px 16px;font-size:13px}
-  button:focus-visible{outline:2px solid var(--live);outline-offset:2px}
-
-  #histList li{display:flex;justify-content:space-between;align-items:center;
-    font-family:var(--mono);font-size:12px;color:var(--ink);
-    padding:6px 2px;border-bottom:1px solid var(--line)}
-  #histList li:last-child{border-bottom:none}
-  #histList .d{color:var(--ink-soft)}
-  #histList .x{background:none;border:none;color:#B66;cursor:pointer;
-    font-size:14px;padding:0 4px;line-height:1}
-
-  /* ── 계기 패널 ── */
-  .panel{display:flex;flex-direction:column;gap:14px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
-  .card h2{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--ink-soft);
-    text-transform:uppercase;font-family:var(--mono);margin-bottom:10px}
-
-  select{width:100%;font-family:var(--sans);font-size:14px;padding:10px 12px;
-    border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)}
-
-  .readout{display:flex;align-items:center;gap:16px}
-  .gauge{flex:0 0 110px}
-  .angle-num{font-family:var(--mono);font-size:42px;font-weight:600;line-height:1;
-    font-variant-numeric:tabular-nums}
-  .angle-num small{font-size:18px;color:var(--ink-soft)}
-  .angle-label{font-size:12px;color:var(--ink-soft);margin-top:4px}
-
-  .minmax{display:flex;gap:0;border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
-  .minmax div{flex:1}
-  .minmax .v{font-family:var(--mono);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
-  .minmax .k{font-size:11px;color:var(--ink-soft);font-family:var(--mono)}
-
-  .rombar-wrap{margin-top:6px}
-  .rombar{height:10px;background:var(--live-dim);border-radius:5px;overflow:hidden}
-  .rombar i{display:block;height:100%;width:0%;background:var(--live);border-radius:5px;transition:width .25s}
-  .rombar-meta{display:flex;justify-content:space-between;font-family:var(--mono);
-    font-size:11px;color:var(--ink-soft);margin-top:6px}
-
-  .feedback{font-size:13px;line-height:1.6;padding:11px 13px;border-radius:7px;
-    background:var(--live-dim);color:#0B5B49}
-  .feedback.warn{background:#F8E8D7;color:#8A4D14}
-  .feedback.idle{background:#EDF1F0;color:var(--ink-soft)}
-
-  footer{max-width:1100px;margin:0 auto;padding:0 20px 28px;font-size:11px;
-    color:var(--ink-soft);line-height:1.6}
-  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
-</style>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
 <header>
-  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.5 · on-device</span></div>
+  <div class="brand"><h1>ROM Vision</h1><span>prototype v0.9 · on-device · 3D</span></div>
   <div class="status"><span class="led" id="led"></span><span id="statusText">대기 중</span></div>
 </header>
 
@@ -119,17 +31,12 @@
   <!-- 계기 패널 -->
   <aside class="panel">
     <div class="card">
-      <h2>측정 관절</h2>
-      <select id="jointSelect" aria-label="측정할 관절 선택">
-        <option value="kneeR">무릎 · 오른쪽</option>
-        <option value="kneeL">무릎 · 왼쪽</option>
-        <option value="elbowR">팔꿈치 · 오른쪽</option>
-        <option value="elbowL">팔꿈치 · 왼쪽</option>
-        <option value="shoulderR">어깨 외전 · 오른쪽</option>
-        <option value="shoulderL">어깨 외전 · 왼쪽</option>
-        <option value="hipR">고관절 굴곡 · 오른쪽</option>
-        <option value="hipL">고관절 굴곡 · 왼쪽</option>
-      </select>
+      <h2>측정 운동</h2>
+      <select id="exSelect" aria-label="측정할 운동 선택"></select>
+      <div class="mode-row">
+        <label><input type="checkbox" id="autoChk"> 동작 자동 인식</label>
+        <span class="badge" id="detectedBadge"></span>
+      </div>
       <p id="jointGuide" style="margin-top:10px;font-size:12px;line-height:1.6;color:var(--ink-soft)"></p>
     </div>
 
@@ -143,13 +50,21 @@
         </svg>
         <div>
           <div class="angle-num" id="angleNum">—<small>°</small></div>
-          <div class="angle-label" id="angleLabel">관절 내각 (3점 기준)</div>
+          <div class="angle-label" id="angleLabel">3D 관절각 (worldLandmarks)</div>
         </div>
       </div>
       <div class="minmax">
         <div><div class="v" id="minV">—</div><div class="k">MIN</div></div>
         <div><div class="v" id="maxV">—</div><div class="k">MAX</div></div>
         <div><div class="v" id="romV">—</div><div class="k">ROM</div></div>
+      </div>
+      <div class="minmax">
+        <div><div class="v" id="repsV">—</div><div class="k">REPS</div></div>
+        <div><div class="v" id="medV">—</div><div class="k">REP 중앙값</div></div>
+        <div><div class="v" id="qualV">—</div><div class="k">품질</div></div>
+      </div>
+      <div class="mode-row" style="margin-top:8px">
+        <span class="badge warn" id="qualBadge">측정 품질 낮음 — 이 수치는 참고용입니다</span>
       </div>
     </div>
 
@@ -160,7 +75,7 @@
         <div class="rombar-meta"><span id="romPct">0%</span><span id="romTarget">목표 —°</span></div>
       </div>
       <p class="feedback idle" id="feedback" style="margin-top:12px">
-        관절을 선택하고 카메라를 시작한 뒤, 해당 관절을 천천히 끝까지 굽혔다 펴보세요.
+        운동을 선택하고 카메라를 시작한 뒤, 해당 관절을 천천히 끝까지 굽혔다 펴보세요.
       </p>
       <div style="margin-top:12px;display:flex;gap:8px">
         <button class="primary sm" id="saveBtn">세션 저장</button>
@@ -184,375 +99,11 @@
 </main>
 
 <footer>
-  ※ 본 도구는 프로토타입이며 의료기기가 아닙니다. 2D 포즈 추정 특성상 카메라와 관절 운동면이
-  수직(측면 촬영)이 아닐 경우 각도 오차가 커집니다. 측정 관절이 화면 측면에 보이도록 촬영하세요.
+  ※ 본 도구는 프로토타입이며 의료기기가 아닙니다. 관절각은 MediaPipe 3D worldLandmarks로 계산해
+  카메라 시점 영향이 적지만, 측정 관절이 몸이나 다른 물체에 가려지면 정확도가 떨어집니다.
+  품질 점수가 낮은 측정은 참고용으로만 사용하세요.
 </footer>
 
-<script type="module">
-import { PoseLandmarker, FilesetResolver, DrawingUtils }
-  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
-
-/* ── 관절 정의: [A, 꼭짓점, B] 랜드마크 인덱스 + 목표 ROM(도) ───────
-   목표값은 AAOS 등 일반 임상 기준의 근사치(프로토타입용) */
-const JOINTS = {
-  kneeR:    {pts:[24,26,28], target:135, name:"무릎(우)",  view:"side",
-             guide:"오른쪽 옆모습이 보이게 서서 무릎을 굽혔다 펴세요."},
-  kneeL:    {pts:[23,25,27], target:135, name:"무릎(좌)",  view:"side",
-             guide:"왼쪽 옆모습이 보이게 서서 무릎을 굽혔다 펴세요."},
-  elbowR:   {pts:[12,14,16], target:145, name:"팔꿈치(우)", view:"any",
-             guide:"팔 전체가 화면에 보이게 하고 팔꿈치를 굽혔다 펴세요."},
-  elbowL:   {pts:[11,13,15], target:145, name:"팔꿈치(좌)", view:"any",
-             guide:"팔 전체가 화면에 보이게 하고 팔꿈치를 굽혔다 펴세요."},
-  shoulderR:{pts:[24,12,14], target:165, name:"어깨(우)",  view:"front",
-             guide:"정면을 보고 팔을 '옆으로' 천천히 들어 올리세요. 앞으로 들면 측정되지 않습니다 (측면 촬영 필요)."},
-  shoulderL:{pts:[23,11,13], target:165, name:"어깨(좌)",  view:"front",
-             guide:"정면을 보고 팔을 '옆으로' 천천히 들어 올리세요. 앞으로 들면 측정되지 않습니다 (측면 촬영 필요)."},
-  hipR:     {pts:[12,24,26], target:115, name:"고관절(우)", view:"side",
-             guide:"오른쪽 옆모습이 보이게 서서 무릎을 가슴 쪽으로 들어 올리세요."},
-  hipL:     {pts:[11,23,25], target:115, name:"고관절(좌)", view:"side",
-             guide:"왼쪽 옆모습이 보이게 서서 무릎을 가슴 쪽으로 들어 올리세요."},
-};
-
-const $ = id => document.getElementById(id);
-const video=$("video"), canvas=$("canvas"), ctx=canvas.getContext("2d");
-let landmarker=null, running=false, lastTs=-1;
-let session={min:Infinity,max:-Infinity,comp:0,frames:0};
-let smooth=null;                       // EMA 스무딩
-const ARC_LEN=198;
-
-function angle3(a,b,c){               // 꼭짓점 b의 내각(0~180°)
-  const v1={x:a.x-b.x,y:a.y-b.y}, v2={x:c.x-b.x,y:c.y-b.y};
-  const dot=v1.x*v2.x+v1.y*v2.y;
-  const m=Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y);
-  if(m===0) return null;
-  return Math.acos(Math.min(1,Math.max(-1,dot/m)))*180/Math.PI;
-}
-
-function resetSession(){
-  session={min:Infinity,max:-Infinity,comp:0,frames:0}; smooth=null;
-  $("minV").textContent=$("maxV").textContent=$("romV").textContent="—";
-  $("romFill").style.width="0%"; $("romPct").textContent="0%";
-  const fb=$("feedback");
-  fb.className="feedback idle";
-  fb.textContent="관절을 천천히 끝까지 굽혔다 펴보세요. 최소·최대각으로 ROM을 계산합니다.";
-}
-$("resetBtn").onclick=resetSession;
-$("jointSelect").onchange=()=>{ resetSession(); updateTargetLabel(); renderHistory(); };
-
-/* ── 세션 기록: 이 기기 브라우저에만 저장 (서버 전송 없음) ── */
-const STORE="romvision_records_v1";
-function loadRecords(){ try{return JSON.parse(localStorage.getItem(STORE))||[]}catch{return[]} }
-function saveRecords(r){ try{localStorage.setItem(STORE,JSON.stringify(r))}catch(e){alert("저장 실패: "+e.message)} }
-
-$("saveBtn").onclick=()=>{
-  const rom=session.max-session.min;
-  if(!isFinite(rom)||rom<5){ alert("저장할 측정값이 없습니다. 관절을 충분히 움직인 뒤 저장하세요."); return; }
-  const recs=loadRecords();
-  const compPct = session.frames>0 ? Math.round(session.comp/session.frames*100) : 0;
-  recs.push({t:Date.now(), j:$("jointSelect").value,
-    min:Math.round(session.min), max:Math.round(session.max), rom:Math.round(rom), c:compPct});
-  saveRecords(recs); renderHistory(); resetSession();
-  const fb=$("feedback"); fb.className="feedback";
-  fb.textContent="세션이 저장되었습니다. 아래 기록에서 추세를 확인하세요.";
-};
-
-$("csvBtn").onclick=()=>{
-  const recs=loadRecords();
-  if(!recs.length){ alert("내보낼 기록이 없습니다."); return; }
-  let csv="date,joint,min,max,rom,comp_pct\n";
-  for(const r of recs){
-    csv+=new Date(r.t).toISOString()+","+JOINTS[r.j].name+","+r.min+","+r.max+","+r.rom+","+(r.c??"")+"\n";
-  }
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv"}));
-  a.download="rom_records.csv"; a.click();
-};
-
-function renderHistory(){
-  const key=$("jointSelect").value;
-  const recs=loadRecords().filter(r=>r.j===key);
-  const list=$("histList"), svg=$("trend");
-  list.innerHTML=""; svg.innerHTML="";
-  if(!recs.length){
-    svg.innerHTML='<text x="140" y="50" text-anchor="middle" font-size="11" fill="#8FA3A0">저장된 기록이 없습니다</text>';
-    return;
-  }
-  // 최근 5개 목록 (최신 위)
-  for(const r of recs.slice(-5).reverse()){
-    const li=document.createElement("li");
-    const d=new Date(r.t);
-    li.innerHTML='<span class="d">'+(d.getMonth()+1)+'.'+d.getDate()+' '
-      +String(d.getHours()).padStart(2,"0")+':'+String(d.getMinutes()).padStart(2,"0")+'</span>'
-      +'<span>ROM '+r.rom+'° <span class="d">('+r.min+'–'+r.max+'°'
-      +(r.c!=null&&r.c>0 ? ' · 보상 '+r.c+'%' : '')+')</span></span>';
-    const x=document.createElement("button");
-    x.className="x"; x.textContent="×"; x.title="기록 삭제";
-    x.onclick=()=>{ const all=loadRecords(); const i=all.findIndex(a=>a.t===r.t);
-      if(i>-1){ all.splice(i,1); saveRecords(all); renderHistory(); } };
-    li.appendChild(x); list.appendChild(li);
-  }
-  // 최근 12회 추세 그래프
-  const pts=recs.slice(-12), tgt=JOINTS[key].target;
-  const maxV=Math.max(tgt,...pts.map(p=>p.rom))*1.08;
-  const X=i=>pts.length===1?140:20+i*(240/(pts.length-1));
-  const Y=v=>80-(v/maxV)*68;
-  let g='<line x1="20" y1="'+Y(tgt)+'" x2="260" y2="'+Y(tgt)+'" stroke="#D8E0DE" stroke-dasharray="3 3"/>'
-       +'<text x="261" y="'+(Y(tgt)+3)+'" font-size="8" fill="#8FA3A0">목표</text>';
-  if(pts.length>1){
-    g+='<polyline fill="none" stroke="#0E8A6D" stroke-width="2" points="'
-       +pts.map((p,i)=>X(i)+','+Y(p.rom)).join(" ")+'"/>';
-  }
-  pts.forEach((p,i)=>{
-    g+='<circle cx="'+X(i)+'" cy="'+Y(p.rom)+'" r="3" fill="#0E8A6D"/>'
-      +'<text x="'+X(i)+'" y="'+(Y(p.rom)-6)+'" text-anchor="middle" font-size="8" fill="#4A5E63">'+p.rom+'</text>';
-  });
-  svg.innerHTML=g;
-}
-renderHistory();
-
-/* ── 세션 요약: 100% 온디바이스 규칙 기반 분석 (외부 전송 없음) ── */
-$("aiBtn").onclick=()=>{
-  const key=$("jointSelect").value, J=JOINTS[key];
-  const recs=loadRecords().filter(r=>r.j===key);
-  if(recs.length<2){ alert("요약하려면 같은 관절의 저장 기록이 2회 이상 필요합니다."); return; }
-  const box=$("aiBox"); box.style.display="block";
-
-  const last=recs[recs.length-1], prev=recs[recs.length-2];
-  const dLast=last.rom-prev.rom;
-  const best=Math.max(...recs.map(r=>r.rom));
-  const pct=Math.round(last.rom/J.target*100);
-  // 전체 추세: 전반부 평균 vs 후반부 평균
-  const half=Math.floor(recs.length/2);
-  const avg=a=>a.reduce((s,r)=>s+r.rom,0)/a.length;
-  const trendD=Math.round(avg(recs.slice(half))-avg(recs.slice(0,half)));
-  // 보상 추세
-  const comps=recs.filter(r=>r.c!=null);
-  const lastC=last.c??null, prevC=prev.c??null;
-
-  let lines=[];
-  // 1) 추세
-  lines.push(`【추세】 최근 ${J.name} ROM은 ${last.rom}° (직전 대비 ${dLast>=0?"+":""}${dLast}°), `
-    +`총 ${recs.length}회 중 최고 ${best}°, 목표(${J.target}°)의 ${pct}% 수준입니다. `
-    +(recs.length>=4 ? (trendD>3?`전체적으로 상승 추세(약 +${trendD}°)입니다.`:trendD<-3?`전체적으로 하락 추세(약 ${trendD}°)입니다.`:`전체적으로 유지 추세입니다.`):""));
-  // 2) 보상
-  if(comps.length>=2 && lastC!=null && prevC!=null){
-    if(lastC<prevC) lines.push(`【보상】 보상 움직임 비율이 ${prevC}% → ${lastC}%로 줄었습니다. 움직임의 질이 좋아지고 있습니다.`);
-    else if(lastC>prevC+5) lines.push(`【보상】 보상 비율이 ${prevC}% → ${lastC}%로 늘었습니다. ROM 수치보다 정확한 자세를 우선하세요.`);
-    else if(lastC>30) lines.push(`【보상】 보상 비율이 ${lastC}%로 높은 편입니다. 범위를 줄이더라도 보상 없는 동작을 연습하세요.`);
-  }
-  // 3) 잘된 점
-  if(dLast>0) lines.push(`【잘된 점】 직전 세션보다 가동범위가 ${dLast}° 넓어졌습니다.`);
-  else if(lastC!=null&&prevC!=null&&lastC<prevC) lines.push(`【잘된 점】 보상을 줄이면서 측정을 이어가고 있습니다.`);
-  else lines.push(`【잘된 점】 꾸준히 기록을 쌓고 있다는 것 자체가 회복 추적의 기본입니다.`);
-  // 4) 다음 개선점 (우선순위: 통증주의 하락 > 보상 > 범위 확장 > 유지)
-  if(trendD<-3 && recs.length>=4)
-    lines.push(`【다음 세션】 ROM이 줄어드는 추세입니다. 통증·피로가 있는지 확인하고, 무리한 확장보다 통증 없는 범위 반복을 권합니다.`);
-  else if(lastC!=null && lastC>30)
-    lines.push(`【다음 세션】 거울 경고(빨간 배너)가 뜨지 않는 범위까지만 천천히 움직이는 연습을 해보세요.`);
-  else if(pct<60)
-    lines.push(`【다음 세션】 통증이 없는 범위에서 끝지점에 도달한 뒤 2~3초 유지를 세트당 5회 시도해 보세요.`);
-  else if(pct<90)
-    lines.push(`【다음 세션】 목표까지 ${J.target-last.rom}° 남았습니다. 끝범위 유지 시간을 3~5초로 늘려보세요.`);
-  else
-    lines.push(`【다음 세션】 목표 범위에 도달했습니다. 반대쪽과 비교 측정해 좌우 차이를 확인해 보세요.`);
-
-  lines.push(`※ 본 내용은 측정 기록 기반 운동 보조 정보이며 의료적 진단이 아닙니다.`);
-  box.textContent=lines.join("\n\n");
-};
-function updateTargetLabel(){
-  const J=JOINTS[$("jointSelect").value];
-  $("romTarget").textContent=`목표 ${J.target}°`;
-  $("jointGuide").textContent="📐 "+J.guide;
-}
-updateTargetLabel();
-
-$("startBtn").onclick=async()=>{
-  const btn=$("startBtn");
-  btn.disabled=true; btn.textContent="모델 로딩 중…";
-  $("statusText").textContent="모델 로딩";
-  try{
-    const fileset=await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-    landmarker=await PoseLandmarker.createFromOptions(fileset,{
-      baseOptions:{
-        modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
-        delegate:"GPU"},
-      runningMode:"VIDEO", numPoses:1});
-    btn.textContent="카메라 켜는 중…";
-    const stream=await navigator.mediaDevices.getUserMedia(
-      {video:{width:{ideal:960},height:{ideal:720},facingMode:"user"}});
-    video.srcObject=stream;
-    await video.play();
-    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-    $("placeholder").style.display="none";
-    $("hud").style.display="block";
-    $("led").classList.add("on");
-    $("statusText").textContent="측정 중 · on-device";
-    running=true;
-    requestAnimationFrame(loop);
-  }catch(e){
-    btn.disabled=false; btn.textContent="카메라 시작";
-    $("statusText").textContent="오류";
-    alert("시작 실패: "+e.message+"\n카메라 권한과 HTTPS 접속 여부를 확인하세요.");
-  }
-};
-
-let fpsT=performance.now(), fpsN=0;
-function loop(){
-  if(!running) return;
-  if(video.currentTime!==lastTs){
-    lastTs=video.currentTime;
-    const res=landmarker.detectForVideo(video,performance.now());
-    draw(res);
-    fpsN++;
-    const now=performance.now();
-    if(now-fpsT>1000){ $("hud").textContent=fpsN+" fps · local"; fpsN=0; fpsT=now; }
-  }
-  requestAnimationFrame(loop);
-}
-
-function draw(res){
-  ctx.save();
-  // 거울 모드
-  ctx.translate(canvas.width,0); ctx.scale(-1,1);
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-
-  const lm=res.landmarks?.[0];
-  if(!lm){ ctx.restore(); setAngle(null); return; }
-
-  // 스켈레톤
-  const du=new DrawingUtils(ctx);
-  du.drawConnectors(lm,PoseLandmarker.POSE_CONNECTIONS,
-    {color:"rgba(255,255,255,.35)",lineWidth:2});
-
-  const J=JOINTS[$("jointSelect").value];
-  const [ia,ib,ic]=J.pts, A=lm[ia], B=lm[ib], C=lm[ic];
-  const vis=Math.min(A.visibility??1,B.visibility??1,C.visibility??1);
-  let ang=angle3(A,B,C);
-
-  // 자세 방향 감지: 어깨 너비 / 몸통 높이 비율
-  const shW=Math.abs(lm[11].x-lm[12].x);
-  const torso=Math.abs(((lm[11].y+lm[12].y)/2)-((lm[23].y+lm[24].y)/2));
-  const ratio=torso>0 ? shW/torso : 0;
-  let poseWarn=null;
-  if(J.view==="side"  && ratio>0.45) poseWarn="몸을 옆으로 돌려 측면이 보이게 서 주세요";
-  if(J.view==="front" && ratio<0.25) poseWarn="정면을 보고 서 주세요";
-
-  // ── 보상 움직임 감지 ──
-  let compWarn=null;
-  const jk=$("jointSelect").value;
-  const mShX=(lm[11].x+lm[12].x)/2, mShY=(lm[11].y+lm[12].y)/2;
-  const mHpX=(lm[23].x+lm[24].x)/2, mHpY=(lm[23].y+lm[24].y)/2;
-  const tilt=Math.atan2(mShX-mHpX, mHpY-mShY)*180/Math.PI;   // 0° = 몸통 수직
-  if(jk.startsWith("shoulder") && Math.abs(tilt)>12)
-    compWarn="몸통 기울임 보상 — 상체를 곧게 세우고 팔만 올리세요";
-  if(jk.startsWith("hip") && Math.abs(tilt)>15)
-    compWarn="몸통 젖힘 보상 — 상체를 세운 채 다리만 들어 올리세요";
-  if(jk==="shoulderR" && torso>0 && (lm[11].y-lm[12].y)/torso>0.08)
-    compWarn="어깨 들림(으쓱) 보상 — 어깨를 내리고 팔만 올리세요";
-  if(jk==="shoulderL" && torso>0 && (lm[12].y-lm[11].y)/torso>0.08)
-    compWarn="어깨 들림(으쓱) 보상 — 어깨를 내리고 팔만 올리세요";
-
-  if(ang!==null && vis>0.5){
-    smooth = smooth===null ? ang : smooth*0.7 + ang*0.3;   // EMA
-    ang=smooth;
-    // 측정 관절 강조
-    const px=p=>({x:p.x*canvas.width,y:p.y*canvas.height});
-    const pa=px(A),pb=px(B),pc=px(C);
-    const lineCol=poseWarn ? "#E8B14C" : (compWarn ? "#E05C5C" : "#19D3A5");
-    ctx.strokeStyle=lineCol; ctx.lineWidth=4; ctx.lineCap="round";
-    ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.lineTo(pc.x,pc.y);ctx.stroke();
-    // 측정 3점 표시: 꼭짓점은 링, 양끝은 점
-    for(const p of [pa,pc]){
-      ctx.fillStyle=lineCol;ctx.beginPath();ctx.arc(p.x,p.y,6,0,7);ctx.fill();
-    }
-    ctx.lineWidth=3;ctx.strokeStyle=lineCol;
-    ctx.beginPath();ctx.arc(pb.x,pb.y,10,0,7);ctx.stroke();
-    // 각도 라벨 (거울 보정 위해 텍스트만 재반전)
-    ctx.save();
-    ctx.translate(pb.x,pb.y); ctx.scale(-1,1);
-    ctx.font="600 17px 'IBM Plex Mono'";
-    const t=Math.round(ang)+"°";
-    ctx.fillStyle="rgba(13,20,22,.75)";
-    const w=ctx.measureText(t).width;
-    ctx.fillRect(10,-26,w+14,24);
-    ctx.fillStyle=lineCol; ctx.fillText(t,17,-8);
-    ctx.restore();
-
-    setAngle(ang,J,poseWarn,compWarn);
-  }else{
-    poseWarn = vis<=0.5 ? "측정 관절이 화면에 충분히 보이지 않습니다" : poseWarn;
-    setAngle(null);
-  }
-  // 경고 배너 (자세 = 주황 / 보상 = 빨강)
-  const banner = poseWarn || compWarn;
-  if(banner){
-    ctx.save();
-    ctx.scale(-1,1); ctx.translate(-canvas.width,0);
-    ctx.font="600 16px 'IBM Plex Sans KR'";
-    const w=ctx.measureText(banner).width;
-    ctx.fillStyle = poseWarn ? "rgba(216,122,38,.92)" : "rgba(192,57,57,.92)";
-    ctx.fillRect(canvas.width/2-w/2-14,16,w+28,34);
-    ctx.fillStyle="#fff";
-    ctx.fillText(banner,canvas.width/2-w/2,39);
-    ctx.restore();
-  }
-  ctx.restore();
-}
-
-function setAngle(ang,J,poseWarn,compWarn){
-  if(ang===null){
-    $("angleNum").innerHTML="—<small>°</small>";
-    $("gaugeArc").style.strokeDashoffset=ARC_LEN;
-    return;
-  }
-  $("angleNum").innerHTML=Math.round(ang)+"<small>°</small>";
-  $("gaugeArc").style.strokeDashoffset=ARC_LEN*(1-ang/180);
-
-  if(poseWarn){          // 잘못된 자세에서는 ROM 기록 누적 안 함
-    const fb=$("feedback");
-    fb.className="feedback warn";
-    fb.textContent="⚠ "+poseWarn+" — 올바른 자세에서만 ROM이 기록됩니다.";
-    return;
-  }
-
-  // 보상은 ROM 기록은 유지하되 비율을 집계 (임상적으로 보상 포함 ROM도 의미가 있음)
-  session.frames++;
-  if(compWarn){
-    session.comp++;
-    const fb=$("feedback");
-    fb.className="feedback warn";
-    fb.textContent="🔴 "+compWarn;
-  }
-
-  session.min=Math.min(session.min,ang);
-  session.max=Math.max(session.max,ang);
-  const rom=session.max-session.min;
-  $("minV").textContent=Math.round(session.min)+"°";
-  $("maxV").textContent=Math.round(session.max)+"°";
-  $("romV").textContent=Math.round(rom)+"°";
-
-  const pct=Math.min(100,rom/J.target*100);
-  $("romFill").style.width=pct+"%";
-  $("romPct").textContent=Math.round(pct)+"%";
-
-  if(compWarn) return;   // 보상 경고가 떠 있는 동안에는 ROM 피드백으로 덮지 않음
-
-  const fb=$("feedback");
-  if(rom<10){
-    fb.className="feedback idle";
-    fb.textContent=`${J.name} 관절을 천천히 끝까지 움직여 보세요.`;
-  }else if(pct<60){
-    fb.className="feedback warn";
-    fb.textContent=`${J.name} ROM ${Math.round(rom)}° — 목표(${J.target}°)의 ${Math.round(pct)}%. 통증이 없는 범위에서 조금 더 깊게 움직여 보세요.`;
-  }else if(pct<90){
-    fb.className="feedback";
-    fb.textContent=`${J.name} ROM ${Math.round(rom)}° — 목표의 ${Math.round(pct)}%. 좋은 진행입니다. 끝범위에서 2~3초 유지해 보세요.`;
-  }else{
-    fb.className="feedback";
-    fb.textContent=`${J.name} ROM ${Math.round(rom)}° — 정상 범위 수준입니다. 반대쪽과 비교 측정해 보세요.`;
-  }
-}
-</script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
